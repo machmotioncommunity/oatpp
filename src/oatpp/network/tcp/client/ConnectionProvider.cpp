@@ -117,6 +117,17 @@ provider::ResourceHandle<data::stream::IOStream> ConnectionProvider::get() {
 
     clientHandle = socket(currResult->ai_family, currResult->ai_socktype, currResult->ai_protocol);
 
+    // DEV-1764 (2022-07-20 todd) Attempt to set a proper socket timeout for our purposes.
+#pragma message("[DEV-1764] Patch applied (connect retransmit timeout)")
+    DWORD mm_socket_timeout_ms = 800;
+    int setopt_retval = setsockopt(clientHandle, IPPROTO_TCP, TCP_MAXRTMS,
+								   reinterpret_cast<const char*>(&mm_socket_timeout_ms), sizeof(mm_socket_timeout_ms));
+    if (setopt_retval == SOCKET_ERROR) {
+		int wsa_error = WSAGetLastError();
+		throw std::runtime_error("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]. "
+								 "Error. Call to setsockopt(,,IPPROTO_TCP,TCP_MAXRTMS) failed with code " + std::to_string(wsa_error));
+    }
+
     if(clientHandle >= 0) {
 
       if(connect(clientHandle, currResult->ai_addr, (int)currResult->ai_addrlen) == 0) {
